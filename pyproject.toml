@@ -25,7 +25,10 @@ keywords = ["Local Control", "Cloud Control", "Coffee Machine", "IoT"]
 classifiers = [
     "Development Status :: 4 - Beta",
 
-    "Intended Audience :: Developers :: End Users/Desktop :: Automation",
+    "Intended Audience :: Developers",
+    "Intended Audience :: End Users/Desktop",
+    "Intended Audience :: Information Technology",
+
     "Topic :: Software Development :: Libraries :: API :: Automation",
 
     "Programming Language :: Python :: 3.13",
