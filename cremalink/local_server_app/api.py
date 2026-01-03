@@ -213,7 +213,8 @@ def create_app(
         try:
             await ad.register_with_device(st)
         except Exception as exc:
-            return PlainTextResponse(str(exc), status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            st.log("internal_server_error", {"status_code": status.HTTP_500_INTERNAL_SERVER_ERROR, "error": str(exc)})
+            return PlainTextResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
         return PlainTextResponse("registered")
 
     app.include_router(router)
