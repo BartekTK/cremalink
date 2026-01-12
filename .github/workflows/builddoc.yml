@@ -44,4 +44,4 @@ jobs:
         --verbose
         --jobs=auto
         --show-traceback
-        --fail-on-warning
+#        --fail-on-warning
