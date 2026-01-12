@@ -40,7 +40,7 @@ jobs:
     - name: Render the documentation
       run: >
         sphinx-build
-        -M html ./docs ./build/sphinx
+        -M html ./docs/source ./build/sphinx
         --verbose
         --jobs=auto
         --show-traceback
