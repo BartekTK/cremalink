@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write # Allow the action to push to the gh-pages branch
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
@@ -17,7 +17,7 @@ env:
   UV_SYSTEM_PYTHON: "1"  # make uv do global installs
 
 jobs:
-  verbose:
+  build-and-deploy-docs:
     runs-on: ubuntu-latest
 
     steps:
@@ -47,9 +47,11 @@ jobs:
         ./cremalink
     - name: Render the documentation
       run: >
-        sphinx-build
-        -M html ./docs/source ./docs/build/sphinx
-        --verbose
-        --jobs=auto
-        --show-traceback
-#        --fail-on-warning
+        sphinx-build -b html ./docs/source ./docs/build/html
+
+    - name: Deploy to GitHub Pages
+      if: github.ref == 'refs/heads/main' # Only deploy when pushing to the main branch
+      uses: peaceiris/actions-gh-pages@v4
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./docs/build/html
