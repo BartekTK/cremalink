@@ -92,6 +92,11 @@
         "byte": 0,
         "bit": 0
       },
+      "is_waste_container_full": {
+        "source": "alarms",
+        "byte": 0,
+        "bit": 1
+      },
       "is_waste_container_missing": {
         "source": "switches",
         "byte": 0,
