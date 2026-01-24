@@ -6,8 +6,11 @@ coffee machine on the local network. It exposes a simple HTTP API that the
 `LocalTransport` can use, and it handles the complexities of direct device
 communication, including authentication and command formatting.
 
-This script can be run directly from the command line, for example:
-`cremalink-server --ip 0.0.0.0 --port 10280`
+This script can be run directly from the command line. It requires a settings
+file for device credentials and can be configured with a specific IP and port.
+
+Example:
+`cremalink-server --settings_path /path/to/your/conf.json --ip 0.0.0.0 --port 10280`
 """
 import argparse
 import sys
@@ -64,13 +67,13 @@ def main():
         "--advertised_ip",
         type=str,
         default=None,
-        help="IP address to advertise to the coffee machine."
+        help="IP address to advertise to the coffee machine. If not set, the server's IP is used."
     )
     parser.add_argument(
         "--settings_path",
         type=str,
         default="",
-        help="Path to the configuration file, with device credentials."
+        help="Path to the JSON configuration file containing device credentials (DSN, LAN key, etc.)."
     )
 
     # Manually handle --help to avoid argument parsing errors with unknown args.
