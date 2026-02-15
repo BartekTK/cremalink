@@ -5,6 +5,42 @@
     "local": true
   },
   "command_map": {
+    "cortado": {
+      "command": "0d1883f018010c011c020100301b0202030900300400060a84",
+      "name": "Cortado"
+    },
+    "cappuccino_plus": {
+      "command": "0d1483f00d011c020100781b020900b40400067a44",
+      "name": "Cappuccino+"
+    },
+    "hot_milk": {
+      "command": "0d0f83f00c011c020901201b00061de5",
+      "name": "Hot Milk"
+    },
+    "espresso_macchiato": {
+      "command": "0d1683f00b011c0201001e1b0102030900280400065a08",
+      "name": "Espresso Macchiato"
+    },
+    "flat_white": {
+      "command": "0d1883f00a010c011c0201003c1b0102030900dc0400068393",
+      "name": "Flat White"
+    },
+    "caffe_latte": {
+      "command": "0d1683f009011c0201003c1b01020309017c040006649e",
+      "name": "Caffé Latte"
+    },
+    "latte_macchiato": {
+      "command": "0d1683f008011c020100481b02020209015c0400063cc2",
+      "name": "Latte Macchiato"
+    },
+    "cappuccino": {
+      "command": "0d1683f007011c0201004e1b0202040900cc040006f563",
+      "name": "Cappuccino"
+    },
+    "cappuccino_mix": {
+      "command": "0d1883f00f010c011c020100321b0402030900f704000ad9f8",
+      "name": "Cappuccino Mix"
+    },
     "americano": {
       "command": "0d1483f006010100280f006e1b010203040006ecfe",
       "name": "Americano"
