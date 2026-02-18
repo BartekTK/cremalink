@@ -5,11 +5,13 @@ with a coffee machine via the manufacturer's cloud API (Ayla Networks).
 from __future__ import annotations
 
 import time
+from datetime import datetime
 from typing import Any, Optional
 
 import requests
 
 from cremalink.parsing.monitor.decode import build_monitor_snapshot
+from cremalink.parsing.properties import PropertiesSnapshot
 from cremalink.transports.base import DeviceTransport
 from cremalink.resources import load_api_config
 
@@ -119,9 +121,21 @@ class CloudTransport(DeviceTransport):
         self.command_map = command_map
         self.property_map = property_map
 
-    def get_properties(self) -> Any:
-        """Fetches all properties for the device from the cloud API."""
-        return self._get("/properties.json")
+    def get_properties(self) -> PropertiesSnapshot:
+        """Fetches all properties for the device from the cloud API.
+
+        The Ayla API returns a list of ``{"property": {...}}`` objects.
+        This method converts that list into a dict keyed by property name
+        and wraps it in a :class:`PropertiesSnapshot`.
+        """
+        raw = self._get("/properties.json")
+        props_dict: dict[str, Any] = {}
+        items = raw if isinstance(raw, list) else [raw] if isinstance(raw, dict) else []
+        for item in items:
+            name = item.get("property", {}).get("name", "")
+            if name:
+                props_dict[name] = item
+        return PropertiesSnapshot(raw=props_dict, received_at=datetime.now())
 
     def get_property(self, name: str) -> Any:
         """Fetches a single, specific property by name."""
