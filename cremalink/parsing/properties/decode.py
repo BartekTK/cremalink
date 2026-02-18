@@ -4,6 +4,7 @@ This module provides classes for handling and decoding device properties.
 from __future__ import annotations
 
 import base64
+import json
 import re
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -16,12 +17,29 @@ from cremalink.domain.beverages import DRINK_NAMES
 # Maintenance property prefixes → human-readable metric names.
 _MAINTENANCE_MAP: dict[str, str] = {
     "d510": "grounds_container",
+    "d512": "descale_progress",
     "d513": "water_filter",
     "d550": "water_since_descale",
     "d551": "grounds_count",
+    "d552": "total_descale_cycles",
     "d553": "total_water_dispensed",
+    "d554": "total_filter_replacements",
+    "d555": "water_since_filter",
     "d556": "water_hardness_setting",
 }
+
+# JSON counter property names → list of (property_name, key_prefix_to_strip).
+_JSON_COUNTER_PROPS: list[str] = [
+    "d702_tot_bev_other",
+    "d733_tot_bev_counters",
+    "d734_tot_bev_usage",
+    "d735_iced_bev",
+    "d736_mug_bev",
+    "d737_mug_iced_bev",
+    "d738_cold_brew_bev",
+    "d739_taste_bev",
+    "d740_water_qty_bev",
+]
 
 # Machine settings: d-number prefix → setting name.
 _SETTINGS_PREFIXES: dict[str, str] = {
@@ -379,3 +397,144 @@ class PropertiesSnapshot:
             return None
 
         return payload[0]
+
+    def get_serial_number(self) -> Optional[str]:
+        """Extract the machine serial number from d270 (0xA10F frame).
+
+        The payload format is ``[00, marker_byte, ASCII_serial, 00]``.
+
+        Returns:
+            The serial number string or ``None`` if not available.
+        """
+        b64 = self._get_prop_value("d270")
+        if not b64:
+            return None
+
+        result = self._decode_d0_frame(b64)
+        if result is None:
+            return None
+
+        opcode, payload = result
+        if opcode != 0xA10F or len(payload) < 3:
+            return None
+
+        # Skip first 2 bytes (00, marker), read ASCII until null or end.
+        serial_bytes = payload[2:]
+        end = serial_bytes.find(0)
+        if end >= 0:
+            serial_bytes = serial_bytes[:end]
+        try:
+            return serial_bytes.decode("ascii")
+        except (UnicodeDecodeError, ValueError):
+            return None
+
+    def get_bean_system(self) -> dict[int, str]:
+        """Extract bean system names from d250-d256 (0xBAF0 frames).
+
+        Each property contains a bean slot number and one or more UTF-16LE
+        encoded names.  Only the first (primary) name is returned.
+
+        Returns:
+            A dict mapping bean slot number (0-6) to the primary bean name.
+        """
+        beans: dict[int, str] = {}
+        for i in range(7):
+            prefix = f"d{250 + i}"
+            b64 = self._get_prop_value(prefix)
+            if not b64:
+                continue
+
+            result = self._decode_d0_frame(b64)
+            if result is None:
+                continue
+
+            opcode, payload = result
+            if opcode != 0xBAF0 or len(payload) < 3:
+                continue
+
+            slot = payload[0]
+            # Skip slot byte + 1 padding byte, decode UTF-16LE.
+            try:
+                text = payload[2:].decode("utf-16-le", errors="replace")
+            except Exception:
+                continue
+
+            # Take first null-terminated name.
+            name = text.split("\x00")[0].strip()
+            if name and name != "\ufffd":
+                beans[slot] = name
+
+        return beans
+
+    def get_service_parameters(self) -> dict[str, Any]:
+        """Extract service parameters from d580 and d581 (JSON values).
+
+        Returns:
+            A dict of all service parameter key-value pairs.
+        """
+        params: dict[str, Any] = {}
+        for prefix in ("d580", "d581"):
+            value_str = self._get_prop_value(prefix)
+            if not value_str:
+                continue
+            try:
+                parsed = json.loads(value_str)
+                if isinstance(parsed, dict):
+                    for k, v in parsed.items():
+                        try:
+                            params[k] = int(v)
+                        except (ValueError, TypeError):
+                            params[k] = v
+            except (json.JSONDecodeError, TypeError):
+                continue
+        return params
+
+    def get_json_counters(self) -> dict[str, int]:
+        """Extract counters from JSON-valued d7xx properties.
+
+        These properties (d702, d733-d740) contain JSON objects whose values
+        are string-encoded integers.
+
+        Returns:
+            A flattened dict mapping counter labels to integer values.
+        """
+        counters: dict[str, int] = {}
+        for prop_name in _JSON_COUNTER_PROPS:
+            for entry in self.raw.values():
+                if not isinstance(entry, dict):
+                    continue
+                prop = entry.get("property", {})
+                name = prop.get("name", "")
+                if name != prop_name:
+                    continue
+                value = prop.get("value")
+                if not value or not isinstance(value, str):
+                    break
+                try:
+                    parsed = json.loads(value)
+                except (json.JSONDecodeError, TypeError):
+                    break
+                if isinstance(parsed, dict):
+                    for k, v in parsed.items():
+                        try:
+                            counters[k] = int(v)
+                        except (ValueError, TypeError):
+                            pass
+                break
+        return counters
+
+    def get_software_version(self) -> Optional[str]:
+        """Extract the firmware software version string.
+
+        Returns:
+            The software version string or ``None``.
+        """
+        for entry in self.raw.values():
+            if not isinstance(entry, dict):
+                continue
+            prop = entry.get("property", {})
+            if prop.get("name") == "software_version":
+                value = prop.get("value")
+                if value and isinstance(value, str):
+                    return value
+        return None
