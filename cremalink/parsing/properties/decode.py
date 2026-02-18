@@ -99,13 +99,15 @@ class PropertiesSnapshot:
 
     def get_counters(self) -> dict[str, int]:
         """
-        Extract beverage usage counters from properties in the d705-d738 range.
+        Extract beverage usage counters from properties whose names contain
+        ``_id{N}_`` (e.g. ``d705_tot_id1_espr``).
 
         Returns:
             A dict mapping beverage names (or ``"unknown_0xNN"``) to their count.
         """
         counters: dict[str, int] = {}
-        counter_pattern = re.compile(r"d7\d{2}")
+        # Match property names like d705_tot_id1_espr, d709_id6_americano, etc.
+        id_pattern = re.compile(r"d7\d{2}.*_id(\d+)")
 
         for entry in self.raw.values():
             if not isinstance(entry, dict):
@@ -113,7 +115,11 @@ class PropertiesSnapshot:
             prop = entry.get("property", {})
             name = prop.get("name", "")
             value = prop.get("value")
-            if not counter_pattern.match(name) or value is None:
+            if value is None:
+                continue
+
+            m = id_pattern.match(name)
+            if not m:
                 continue
 
             try:
@@ -121,16 +127,11 @@ class PropertiesSnapshot:
             except (ValueError, TypeError):
                 continue
 
-            # Counter properties encode the bev_id in the property name.
-            # Extract it from the last two digits of the name.
-            try:
-                bev_id = int(name[1:], 10) - 705
-                if bev_id in DRINK_NAMES:
-                    counters[DRINK_NAMES[bev_id]] = count
-                else:
-                    counters[f"unknown_0x{bev_id:02x}"] = count
-            except ValueError:
-                pass
+            bev_id = int(m.group(1))
+            if bev_id in DRINK_NAMES:
+                counters[DRINK_NAMES[bev_id]] = count
+            else:
+                counters[f"unknown_0x{bev_id:02x}"] = count
 
         return counters
 

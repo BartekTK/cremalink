@@ -101,3 +101,46 @@ def test_get_profile_names_empty():
     raw = {}
     snapshot = PropertiesSnapshot(raw=raw, received_at=dt.datetime.now(dt.UTC))
     assert snapshot.get_profile_names() == {}
+
+
+def test_get_counters():
+    raw = {
+        "c1": _make_prop("d705_tot_id1_espr", "948"),
+        "c2": _make_prop("d706_tot_id2_coffee", "97"),
+        "c3": _make_prop("d713_id10_flatwhite", "610"),
+        "c4": _make_prop("d708_tot_id5_doppio_p", "642"),
+    }
+    snapshot = PropertiesSnapshot(raw=raw, received_at=dt.datetime.now(dt.UTC))
+    counters = snapshot.get_counters()
+    assert counters["espresso"] == 948
+    assert counters["coffee"] == 97
+    assert counters["flat_white"] == 610
+    assert counters["doppio_plus"] == 642
+
+
+def test_get_counters_skips_aggregates():
+    """Aggregate counters without _id{N}_ should be ignored."""
+    raw = {
+        "c1": _make_prop("d701_tot_bev_b", "5000"),
+        "c2": _make_prop("d731_tot_mug_hot", "100"),
+        "c3": _make_prop("d705_tot_id1_espr", "948"),
+    }
+    snapshot = PropertiesSnapshot(raw=raw, received_at=dt.datetime.now(dt.UTC))
+    counters = snapshot.get_counters()
+    assert len(counters) == 1
+    assert counters["espresso"] == 948
+
+
+def test_get_counters_zero_values():
+    raw = {
+        "c1": _make_prop("d707_tot_id3_long", "0"),
+    }
+    snapshot = PropertiesSnapshot(raw=raw, received_at=dt.datetime.now(dt.UTC))
+    counters = snapshot.get_counters()
+    assert counters["long_coffee"] == 0
+
+
+def test_get_counters_empty():
+    raw = {}
+    snapshot = PropertiesSnapshot(raw=raw, received_at=dt.datetime.now(dt.UTC))
+    assert snapshot.get_counters() == {}
