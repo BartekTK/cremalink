@@ -16,6 +16,9 @@ from cremalink.parsing.monitor.frame import MonitorFrame
 from cremalink.parsing.monitor.model import MonitorSnapshot
 from cremalink.parsing.monitor.profile import MonitorProfile
 from cremalink.parsing.monitor.view import MonitorView
+from cremalink.parsing.tlv import parse_tlv_params, TWO_BYTE_PARAMS
+from cremalink.parsing.commands import build_brew_command
+from cremalink.domain.beverages import BeverageCatalog, DRINK_NAMES
 from cremalink.transports.base import DeviceTransport
 from cremalink.devices import device_map
 from cremalink.core.binary import hex_to_signed_decimal, signed_decimal_to_hex
@@ -294,3 +297,100 @@ class Device:
         hex_command = self.command_map.get("refresh", {}).get("command")
         command = _encode_command(hex_command, APP_ID_HEX)
         return self.transport.send_command(command)
+
+    def activate_app_connection(self) -> bool:
+        """
+        Register or refresh the app connection so the machine pushes live
+        monitor data.
+
+        The machine only sends live monitor updates when an app has registered
+        via the ``app_id`` property. This method checks the current state and
+        either registers or refreshes as needed.
+
+        Returns:
+            ``True`` if the connection is active, ``False`` if registration failed.
+        """
+        our_app_id = hex_to_signed_decimal(APP_ID_HEX)
+        prop = self.get_property(
+            self.property_map.get("app_id", "app_id")
+        ) or {}
+        current = prop.get("value", "0")
+
+        if current == our_app_id:
+            self._refresh_app_id()
+            return True
+        else:
+            self._register_app_id(APP_ID_HEX)
+            time.sleep(7)
+            prop = self.get_property(
+                self.property_map.get("app_id", "app_id")
+            ) or {}
+            return prop.get("value", "0") == our_app_id
+
+    def brew_custom(
+        self,
+        beverage: str | int,
+        params: dict[str, int] | dict[int, int] | None = None,
+    ) -> Any:
+        """
+        Brew a beverage with optional parameter overrides.
+
+        Resolves the beverage from the command_map, decodes its base
+        parameters from the stored hex command, merges any user overrides,
+        and sends the resulting command.
+
+        Args:
+            beverage: A beverage name (e.g. ``"espresso"``) or numeric ID.
+            params: Optional parameter overrides. Keys can be tag names
+                (e.g. ``"coffee_ml"``) or integer tag IDs.
+
+        Returns:
+            The response from the transport.
+
+        Raises:
+            ValueError: If the beverage is not found in the command map.
+        """
+        # Resolve beverage to a name and ID.
+        if isinstance(beverage, int):
+            name = DRINK_NAMES.get(beverage)
+            if not name:
+                raise ValueError(f"Unknown beverage ID: 0x{beverage:02x}")
+            bev_id = beverage
+        else:
+            name = beverage.lower().strip()
+            catalog = BeverageCatalog()
+            info = catalog.get_by_name(name)
+            if info:
+                bev_id = info.id
+            else:
+                raise ValueError(f"Unknown beverage: '{name}'")
+
+        # Get base params from the command_map hex if available.
+        entry = self.command_map.get(name, {})
+        hex_command = entry.get("command", "")
+        base_params: dict[int, int] = {}
+
+        if hex_command and len(hex_command) >= 12:
+            # Command frame: 0D [len] 83 F0 [bev_id] [trigger] [TLV...] [CRC]
+            frame_bytes = bytes.fromhex(hex_command)
+            if len(frame_bytes) > 8:
+                tlv_start = 6  # After: marker, len, opcode_hi, opcode_lo, bev_id, trigger
+                tlv_end = len(frame_bytes) - 2  # Before CRC
+                if tlv_end > tlv_start:
+                    base_params = parse_tlv_params(frame_bytes[tlv_start:tlv_end])
+
+        # Merge user overrides.
+        if params:
+            from cremalink.parsing.tlv.decode import PARAM_IDS
+            for key, val in params.items():
+                if isinstance(key, str):
+                    tag = PARAM_IDS.get(key)
+                    if tag is None:
+                        raise ValueError(f"Unknown parameter name: '{key}'")
+                else:
+                    tag = key
+                base_params[tag] = val
+
+        # Build and send the command.
+        cmd_hex = build_brew_command(bev_id, base_params)
+        return self.send_command(cmd_hex)

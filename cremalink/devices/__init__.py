@@ -17,6 +17,29 @@ class DeviceMapNotFoundError(FileNotFoundError):
     pass
 
 
+# Maps OEM model strings (from cloud metadata) to cremalink device map IDs.
+OEM_MODEL_MAP: dict[str, str] = {
+    "DL-striker-cb": "ECAM450",
+    "AY008ESP1": "ECAM450",
+}
+
+
+def resolve_model_id(raw_model: str) -> str:
+    """
+    Resolve an OEM model string to a cremalink device map ID.
+
+    Checks the ``OEM_MODEL_MAP`` for known mappings and falls back to the
+    raw model string if no mapping exists.
+
+    Args:
+        raw_model: The raw model identifier from the device or cloud metadata.
+
+    Returns:
+        The resolved model ID suitable for ``device_map()`` lookup.
+    """
+    return OEM_MODEL_MAP.get(raw_model, raw_model)
+
+
 def _normalize_model_id(model_id: str) -> str:
     """
     Cleans and validates the model ID string.
@@ -80,10 +103,15 @@ def device_map(model_id: str) -> str:
     res: pathlib.Path = base.joinpath(filename)
 
     if not res.exists():
-        available = get_device_maps()
-        raise DeviceMapNotFoundError(
-            f"Device map '{model_id}' not found. Available: {available}"
-        )
+        # Try OEM model mapping before giving up.
+        resolved = resolve_model_id(model_id)
+        if resolved != model_id:
+            res = base.joinpath(f"{resolved}.json")
+        if not res.exists():
+            available = get_device_maps()
+            raise DeviceMapNotFoundError(
+                f"Device map '{model_id}' not found. Available: {available}"
+            )
 
     try:
         # Efficiently get the file path if the resource is on the filesystem.

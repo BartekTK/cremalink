@@ -5,6 +5,7 @@ import os
 
 import requests
 
+from cremalink.clients.auth import authenticate_gigya
 from cremalink.domain import create_cloud_device
 from cremalink.resources import load_api_config
 
@@ -17,6 +18,35 @@ class Client:
     Client for interacting with the Ayla IoT cloud platform.
     Manages authentication (access and refresh tokens) and device discovery.
     """
+
+    @classmethod
+    def from_credentials(
+        cls,
+        email: str,
+        password: str,
+        token_path: str,
+    ) -> "Client":
+        """
+        Create a Client by authenticating with email and password.
+
+        Performs the full Gigya OIDC authentication flow to obtain tokens,
+        saves the refresh token to ``token_path``, then delegates to the
+        standard ``__init__`` for token-based initialization.
+
+        Args:
+            email: The De'Longhi account email address.
+            password: The De'Longhi account password.
+            token_path: Path to a ``.json`` file for storing the refresh token.
+
+        Returns:
+            An authenticated ``Client`` instance.
+        """
+        tokens = authenticate_gigya(email, password)
+        # Save refresh token so subsequent Client() calls can use it.
+        os.makedirs(os.path.dirname(os.path.abspath(token_path)), exist_ok=True)
+        with open(token_path, "w") as f:
+            json.dump({"refresh_token": tokens.refresh_token}, f, indent=2)
+        return cls(token_path)
 
     def __init__(self, token_path: str):
         # Ensure the token_path points to a JSON file.

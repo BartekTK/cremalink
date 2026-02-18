@@ -1,0 +1,218 @@
+{
+  "device_type": "ECAM450",
+  "support": {
+    "cloud": true,
+    "local": false
+  },
+  "command_map": {
+    "espresso": {
+      "command": "0d1383f0010119010100241b0402050800a139",
+      "name": "Espresso"
+    },
+    "coffee": {
+      "command": "0d1183f0020119010100e71b0402052e64",
+      "name": "Coffee"
+    },
+    "long_coffee": {
+      "command": "0d1183f0030119010100a01b0102030ba7",
+      "name": "Long Coffee"
+    },
+    "double_espresso": {
+      "command": "0d1383f0040119010100481b040205080110a7",
+      "name": "Double Espresso"
+    },
+    "doppio_plus": {
+      "command": "0d0f83f0050119010100781b01a109",
+      "name": "Doppio+"
+    },
+    "americano": {
+      "command": "0d1483f0060119010100b30f00421b0402058261",
+      "name": "Americano"
+    },
+    "cappuccino": {
+      "command": "0d1883f007010b021c0219010100701b0402050900a9134a",
+      "name": "Cappuccino"
+    },
+    "latte_macchiato": {
+      "command": "0d1883f008010b011c02190101003c1b010203090138d283",
+      "name": "Latte Macchiato"
+    },
+    "caffe_latte": {
+      "command": "0d1883f009010b001c02190101003c1b0102030901ad5f52",
+      "name": "Caffe Latte"
+    },
+    "flat_white": {
+      "command": "0d1a83f00a010b010c011c02190101003c1b01020309010b8ad3",
+      "name": "Flat White"
+    },
+    "espresso_macchiato": {
+      "command": "0d1883f00b010b021c02190101001e1b0102030900352786",
+      "name": "Espresso Macchiato"
+    },
+    "hot_milk": {
+      "command": "0d1383f00c010b021c0219011b010901bf6034",
+      "name": "Hot Milk"
+    },
+    "cappuccino_doppio_plus": {
+      "command": "0d1683f00d010b021c0219010100641b010900b8c0d1",
+      "name": "Cappuccino Doppio+"
+    },
+    "cappuccino_mix": {
+      "command": "0d1a83f00f010b020c011c0219010100411b0102030900d3c7a6",
+      "name": "Cappuccino Mix"
+    },
+    "cortado": {
+      "command": "0d1a83f018010b010c011c0219010100281b01020509003cea23",
+      "name": "Cortado"
+    },
+    "hot_water": {
+      "command": "0d1183f010011c0119010f00961b019eff",
+      "name": "Hot Water"
+    },
+    "tea": {
+      "command": "0d1383f016011c0119010f01201b040d03e1c2",
+      "name": "Tea"
+    },
+    "coffee_pot": {
+      "command": "0d1183f01701190201007d1b000203e600",
+      "name": "Coffee Pot"
+    },
+    "brew_over_ice": {
+      "command": "0d1183f01b0119010100641b01020166e8",
+      "name": "Brew Over Ice"
+    },
+    "iced_americano": {
+      "command": "0d1483f0320119010100280f005a1b0102019f65",
+      "name": "Iced Americano"
+    },
+    "iced_cappuccino": {
+      "command": "0d1883f033010b021c0619010100411b01020109006021fa",
+      "name": "Iced Cappuccino"
+    },
+    "iced_latte_macchiato": {
+      "command": "0d1883f034010b011c0619010100411b01020109008d1e89",
+      "name": "Iced Latte Macchiato"
+    },
+    "iced_cappuccino_mix": {
+      "command": "0d1a83f035010b020c011c0619010100411b010201090060d3f1",
+      "name": "Iced Cappuccino Mix"
+    },
+    "iced_flat_white": {
+      "command": "0d1a83f036010b010c011c06190101003c1b01020109005dbd94",
+      "name": "Iced Flat White"
+    },
+    "iced_cold_milk": {
+      "command": "0d1383f037010b021c0619011b010900b362c7",
+      "name": "Iced Cold Milk"
+    },
+    "iced_caffe_latte": {
+      "command": "0d1a83f038010b000c011c0619010100411b0102010900af8450",
+      "name": "Iced Caffe Latte"
+    },
+    "over_ice_espresso": {
+      "command": "0d1183f03901190101003c1b0102017b3e",
+      "name": "Over Ice Espresso"
+    },
+    "barista_special": {
+      "command": "0d1183f0c80119010100281b0102044cb6",
+      "name": "Barista Special"
+    },
+    "wakeup": {
+      "command": "0d07840f02015512",
+      "name": "Turn On"
+    },
+    "standby": {
+      "command": "0d07840f01010041",
+      "name": "Turn Off"
+    },
+    "refresh": {
+      "command": "0d07840f03025640",
+      "name": "Refresh App ID"
+    },
+    "stop": {
+      "command": "0d0d83f010020f00fa1b016635",
+      "name": "Stop"
+    }
+  },
+  "property_map": {
+    "monitor": "d302_monitor_machine",
+    "data_request": "app_data_request",
+    "app_id": "app_id",
+    "device_connected": "app_device_connected"
+  },
+  "monitor_profile": {
+    "enums": {
+      "accessory": {
+        "0": "none",
+        "1": "water_spout",
+        "16": "steam",
+        "64": "hot_water"
+      },
+      "status": {
+        "0": "in_standby",
+        "1": "waking_up",
+        "2": "going_to_sleep",
+        "4": "descaling",
+        "5": "preparing_steam",
+        "7": "ready",
+        "8": "rinsing",
+        "10": "preparing_milk",
+        "11": "dispensing_hot_water",
+        "12": "cleaning_milk",
+        "17": "turning_off"
+      },
+      "action": {
+        "0": "idle",
+        "3": "executing",
+        "4": "finishing",
+        "11": "dispensing",
+        "13": "completing",
+        "14": "post_brew"
+      }
+    },
+    "flags": {
+      "is_watertank_empty": {
+        "source": "alarms",
+        "byte": 0,
+        "bit": 0
+      },
+      "is_waste_container_full": {
+        "source": "alarms",
+        "byte": 0,
+        "bit": 1
+      },
+      "is_waste_container_missing": {
+        "source": "switches",
+        "byte": 0,
+        "bit": 3
+      }
+    },
+    "predicates": {
+      "is_on": {
+        "kind": "not_equals",
+        "source": "status",
+        "value": 0
+      },
+      "is_idle": {
+        "kind": "equals",
+        "source": "action",
+        "value": 0
+      },
+      "is_busy": {
+        "kind": "not_equals",
+        "source": "action",
+        "value": 0
+      },
+      "is_ready": {
+        "kind": "equals",
+        "source": "status",
+        "value": 7
+      },
+      "is_standby": {
+        "kind": "equals",
+        "source": "status",
+        "value": 0
+      }
+    }
+  }
+}
