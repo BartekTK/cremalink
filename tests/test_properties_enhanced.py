@@ -76,12 +76,26 @@ def test_get_recipes_json_container():
     assert recipes[0].format == "default"
 
 
+def _build_profile_names_b64(first: int, last: int, names: list[str]) -> str:
+    """Build a D0 frame (0xA4F0) with UTF-16BE profile names."""
+    body = bytes([first, last])
+    for i, name in enumerate(names):
+        if i > 0:
+            # Separator: 0x0B + profile_num
+            body += bytes([0x0B, first + i])
+        name_encoded = name.encode("utf-16-be")
+        # Pad to 22 bytes (11 UTF-16 chars).
+        name_encoded = name_encoded + b"\x00" * max(0, 22 - len(name_encoded))
+        body = body + name_encoded[:22]
+    return _build_d0_frame_b64(0xA4, 0xF0, body)
+
+
 def test_get_profile_names():
+    b51 = _build_profile_names_b64(1, 3, ["Bartek", "Anita", "Explorer 3"])
+    b52 = _build_profile_names_b64(4, 4, ["Explorer 4"])
     raw = {
-        "p1": _make_prop("d051", "Bartek"),
-        "p2": _make_prop("d052", "Anita"),
-        "p3": _make_prop("d053", "Explorer 3"),
-        "p4": _make_prop("d054", "Explorer 4"),
+        "p1": _make_prop("d051_profile_name1_3", b51),
+        "p2": _make_prop("d052_profile_name4", b52),
     }
     snapshot = PropertiesSnapshot(raw=raw, received_at=dt.datetime.now(dt.UTC))
     names = snapshot.get_profile_names()
@@ -89,8 +103,9 @@ def test_get_profile_names():
 
 
 def test_get_profile_names_partial():
+    b51 = _build_profile_names_b64(1, 1, ["Alice"])
     raw = {
-        "p1": _make_prop("d051", "Alice"),
+        "p1": _make_prop("d051_profile_name1_1", b51),
     }
     snapshot = PropertiesSnapshot(raw=raw, received_at=dt.datetime.now(dt.UTC))
     names = snapshot.get_profile_names()

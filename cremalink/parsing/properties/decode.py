@@ -173,20 +173,53 @@ class PropertiesSnapshot:
         return counters
 
     def get_profile_names(self) -> dict[int, str]:
-        """
-        Extract user profile names from properties d051-d054.
+        """Extract user profile names from d051/d052 (0xA4F0 frames).
+
+        These properties contain D0 binary frames with UTF-16BE encoded
+        profile names.  d051 holds profiles 1-3, d052 holds profile 4.
 
         Returns:
             A dict mapping profile number (1-4) to the profile name.
         """
         names: dict[int, str] = {}
-        for i in range(1, 5):
-            prop_name = f"d05{i}"
-            entry = self.get(prop_name)
-            if entry and isinstance(entry, dict):
-                value = entry.get("property", {}).get("value")
-                if value and isinstance(value, str):
-                    names[i] = value
+        name_block_size = 22  # 11 UTF-16 characters = 22 bytes
+
+        for prefix in ("d051", "d052"):
+            b64 = self._get_prop_value(prefix)
+            if not b64:
+                continue
+
+            result = self._decode_d0_frame(b64)
+            if result is None:
+                continue
+
+            opcode, payload = result
+            if opcode != 0xA4F0 or len(payload) < 4:
+                continue
+
+            first_profile = payload[0]
+            last_profile = payload[1]
+            pos = 2
+
+            for profile_num in range(first_profile, last_profile + 1):
+                # After the first name block, skip [0x0B, profile_num] separator.
+                if profile_num > first_profile and pos < len(payload) and payload[pos] == 0x0B:
+                    pos += 2
+
+                end = min(pos + name_block_size, len(payload))
+                name_bytes = payload[pos:end]
+                pos = end
+
+                if len(name_bytes) < 2:
+                    continue
+                try:
+                    text = name_bytes.decode("utf-16-be", errors="replace")
+                except Exception:
+                    continue
+                name = text.split("\x00")[0].strip().rstrip("\ufffd\uffff")
+                if name:
+                    names[profile_num] = name
+
         return names
 
     # ------------------------------------------------------------------
@@ -194,7 +227,7 @@ class PropertiesSnapshot:
     # ------------------------------------------------------------------
 
     def _get_prop_value(self, prefix: str) -> Optional[str]:
-        """Find first property whose name starts with *prefix* and return its value."""
+        """Find first property whose name starts with *prefix* and return its string value."""
         for entry in self.raw.values():
             if not isinstance(entry, dict):
                 continue
@@ -203,6 +236,19 @@ class PropertiesSnapshot:
             if name.startswith(prefix):
                 value = prop.get("value")
                 if value is not None and isinstance(value, str):
+                    return value
+        return None
+
+    def _get_prop_any_value(self, prefix: str) -> Any:
+        """Find first property whose name starts with *prefix* and return its raw value."""
+        for entry in self.raw.values():
+            if not isinstance(entry, dict):
+                continue
+            prop = entry.get("property", {})
+            name = prop.get("name", "")
+            if name.startswith(prefix):
+                value = prop.get("value")
+                if value is not None:
                     return value
         return None
 
@@ -269,15 +315,18 @@ class PropertiesSnapshot:
     def get_maintenance(self) -> dict[str, int]:
         """Extract maintenance metrics from known properties (d510-d556).
 
+        Property values may be integers or string-encoded integers depending
+        on the cloud transport.
+
         Returns:
             A dict mapping metric names to integer values.
         """
         result: dict[str, int] = {}
         for prefix, metric_name in _MAINTENANCE_MAP.items():
-            value_str = self._get_prop_value(prefix)
-            if value_str is not None:
+            value = self._get_prop_any_value(prefix)
+            if value is not None:
                 try:
-                    result[metric_name] = int(value_str)
+                    result[metric_name] = int(value)
                 except (ValueError, TypeError):
                     pass
         return result
