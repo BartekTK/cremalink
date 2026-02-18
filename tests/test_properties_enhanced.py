@@ -344,3 +344,147 @@ def test_get_active_profile_none():
     raw = {}
     snapshot = PropertiesSnapshot(raw=raw, received_at=dt.datetime.now(dt.UTC))
     assert snapshot.get_active_profile() is None
+
+
+# ------------------------------------------------------------------
+# Serial number
+# ------------------------------------------------------------------
+
+def test_get_serial_number():
+    # opcode 0xA10F, payload: [00, CD, ASCII"SN12345", 00]
+    serial_ascii = b"SN12345"
+    payload = bytes([0x00, 0xCD]) + serial_ascii + bytes([0x00])
+    b64 = _build_d0_frame_b64(0xA1, 0x0F, payload)
+    raw = {"s1": _make_prop("d270_serial", b64)}
+    snapshot = PropertiesSnapshot(raw=raw, received_at=dt.datetime.now(dt.UTC))
+    assert snapshot.get_serial_number() == "SN12345"
+
+
+def test_get_serial_number_none():
+    raw = {}
+    snapshot = PropertiesSnapshot(raw=raw, received_at=dt.datetime.now(dt.UTC))
+    assert snapshot.get_serial_number() is None
+
+
+# ------------------------------------------------------------------
+# Bean system
+# ------------------------------------------------------------------
+
+def _build_bean_frame_b64(slot: int, name: str) -> str:
+    """Build a bean system D0 frame with UTF-16LE encoded name."""
+    name_bytes = name.encode("utf-16-le")
+    # Pad to at least 40 bytes (typical)
+    name_bytes = name_bytes + b"\x00" * max(0, 40 - len(name_bytes))
+    payload = bytes([slot, 0x00]) + name_bytes
+    return _build_d0_frame_b64(0xBA, 0xF0, payload)
+
+
+def test_get_bean_system():
+    raw = {
+        "b0": _make_prop("d250_bean_0", _build_bean_frame_b64(0, "Default")),
+        "b1": _make_prop("d251_bean_1", _build_bean_frame_b64(1, "ORO")),
+        "b2": _make_prop("d252_bean_2", _build_bean_frame_b64(2, "Arabica")),
+    }
+    snapshot = PropertiesSnapshot(raw=raw, received_at=dt.datetime.now(dt.UTC))
+    beans = snapshot.get_bean_system()
+    assert beans[0] == "Default"
+    assert beans[1] == "ORO"
+    assert beans[2] == "Arabica"
+
+
+def test_get_bean_system_empty():
+    raw = {}
+    snapshot = PropertiesSnapshot(raw=raw, received_at=dt.datetime.now(dt.UTC))
+    assert snapshot.get_bean_system() == {}
+
+
+# ------------------------------------------------------------------
+# Service parameters
+# ------------------------------------------------------------------
+
+def test_get_service_parameters():
+    raw = {
+        "s1": _make_prop("d580_service_parameters", json.dumps({
+            "descale_status": "0",
+            "last_4_water_calc_qty": "37",
+        })),
+        "s2": _make_prop("d581_service_parameters", json.dumps({
+            "water_steamer_calc_rel_qty": "1583928",
+        })),
+    }
+    snapshot = PropertiesSnapshot(raw=raw, received_at=dt.datetime.now(dt.UTC))
+    params = snapshot.get_service_parameters()
+    assert params["descale_status"] == 0
+    assert params["last_4_water_calc_qty"] == 37
+    assert params["water_steamer_calc_rel_qty"] == 1583928
+
+
+def test_get_service_parameters_empty():
+    raw = {}
+    snapshot = PropertiesSnapshot(raw=raw, received_at=dt.datetime.now(dt.UTC))
+    assert snapshot.get_service_parameters() == {}
+
+
+# ------------------------------------------------------------------
+# JSON counters
+# ------------------------------------------------------------------
+
+def test_get_json_counters():
+    raw = {
+        "c1": _make_prop("d702_tot_bev_other", json.dumps({
+            "tot_bev_bw": "637",
+            "tot_bev_other": "35",
+        })),
+        "c2": _make_prop("d735_iced_bev", json.dumps({
+            "tot_id54_iced_flat_white": "2",
+        })),
+    }
+    snapshot = PropertiesSnapshot(raw=raw, received_at=dt.datetime.now(dt.UTC))
+    counters = snapshot.get_json_counters()
+    assert counters["tot_bev_bw"] == 637
+    assert counters["tot_bev_other"] == 35
+    assert counters["tot_id54_iced_flat_white"] == 2
+
+
+def test_get_json_counters_empty():
+    raw = {}
+    snapshot = PropertiesSnapshot(raw=raw, received_at=dt.datetime.now(dt.UTC))
+    assert snapshot.get_json_counters() == {}
+
+
+# ------------------------------------------------------------------
+# Software version
+# ------------------------------------------------------------------
+
+def test_get_software_version():
+    raw = {
+        "v1": _make_prop("software_version", "Striker_cb_demo 1.1.0 Oct 18 2022"),
+    }
+    snapshot = PropertiesSnapshot(raw=raw, received_at=dt.datetime.now(dt.UTC))
+    assert snapshot.get_software_version() == "Striker_cb_demo 1.1.0 Oct 18 2022"
+
+
+def test_get_software_version_none():
+    raw = {}
+    snapshot = PropertiesSnapshot(raw=raw, received_at=dt.datetime.now(dt.UTC))
+    assert snapshot.get_software_version() is None
+
+
+# ------------------------------------------------------------------
+# Extended maintenance map
+# ------------------------------------------------------------------
+
+def test_get_maintenance_extended():
+    """Test that new maintenance keys (d512, d552, d554, d555) are parsed."""
+    raw = {
+        "m1": _make_prop("d512_pct_descale", "93"),
+        "m2": _make_prop("d552_cnt_calc_tot", "1"),
+        "m3": _make_prop("d554_cnt_filter_tot", "8"),
+        "m4": _make_prop("d555_water_filter_qty", "98306"),
+    }
+    snapshot = PropertiesSnapshot(raw=raw, received_at=dt.datetime.now(dt.UTC))
+    maint = snapshot.get_maintenance()
+    assert maint["descale_progress"] == 93
+    assert maint["total_descale_cycles"] == 1
+    assert maint["total_filter_replacements"] == 8
+    assert maint["water_since_filter"] == 98306
