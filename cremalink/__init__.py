@@ -5,6 +5,7 @@ This top-level package exposes the primary user-facing classes and functions
 for easy access, including the main `Client`, the `Device` model, factory
 functions, the beverage catalog, command builder, and authentication helpers.
 """
+from cremalink.clients import AylaSession
 from cremalink.clients.auth import AuthTokens, authenticate_gigya
 from cremalink.clients.cloud import Client
 from cremalink.domain import BeverageCatalog, Device, create_cloud_device, create_local_device
@@ -16,6 +17,7 @@ from importlib.metadata import PackageNotFoundError, version
 
 __all__ = [
     "AuthTokens",
+    "AylaSession",
     "authenticate_gigya",
     "BeverageCatalog",
     "build_brew_command",

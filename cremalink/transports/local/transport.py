@@ -109,7 +109,10 @@ class LocalTransport(DeviceTransport):
         """Sends a command to the device via the local proxy server."""
         if not self._configured:
             self.configure()
-        resp = self._post_server("/command", {"command": command})
+        payload = {"command": command}
+        if alternative_property:
+            payload["property_name"] = alternative_property
+        resp = self._post_server("/command", payload)
         resp.raise_for_status()
         return resp.json()
 

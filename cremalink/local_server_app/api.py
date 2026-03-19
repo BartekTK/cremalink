@@ -112,7 +112,7 @@ def create_app(
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Server not configured")
         try:
             await ad.register_with_device(st)
-            await st.queue_command(req.command)
+            await st.queue_command(req.command, property_name=req.property_name)
         except OverflowError as exc:
             raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=str(exc))
         except ConnectionError as exc:

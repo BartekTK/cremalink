@@ -7,11 +7,14 @@ the setup of the appropriate communication transport (`LocalTransport` or
 """
 from __future__ import annotations
 
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from cremalink.domain.device import Device
 from cremalink.transports.cloud.transport import CloudTransport
 from cremalink.transports.local.transport import LocalTransport
+
+if TYPE_CHECKING:
+    from cremalink.clients.ayla import AylaSession
 
 
 def create_local_device(
@@ -67,8 +70,9 @@ def create_local_device(
 
 def create_cloud_device(
     dsn: str,
-    access_token: str,
+    access_token: Optional[str] = None,
     device_map_path: Optional[str] = None,
+    ayla_session: Optional["AylaSession"] = None,
 ) -> Device:
     """
     Creates a `Device` instance configured for cloud-based communication.
@@ -80,11 +84,17 @@ def create_cloud_device(
         dsn: The Device Serial Number.
         access_token: The authentication token for the cloud service.
         device_map_path: Optional path to a device-specific command map file.
+        ayla_session: Shared Ayla session capable of refreshing expired tokens.
 
     Returns:
         A `Device` instance configured with a `CloudTransport`.
     """
-    transport = CloudTransport(dsn=dsn, access_token=access_token, device_map_path=device_map_path)
+    transport = CloudTransport(
+        dsn=dsn,
+        access_token=access_token,
+        device_map_path=device_map_path,
+        ayla_session=ayla_session,
+    )
     # After transport initialization, some device attributes might be populated.
     # We pass these to the Device constructor.
     return Device.from_map(

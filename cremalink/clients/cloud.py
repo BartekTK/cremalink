@@ -3,14 +3,8 @@ from __future__ import annotations
 import json
 import os
 
-import requests
-
+from cremalink.clients.ayla import AylaSession
 from cremalink.clients.auth import authenticate_gigya
-from cremalink.domain import create_cloud_device
-from cremalink.resources import load_api_config
-
-API_USER_AGENT = "datatransport/3.1.2 android/"
-TOKEN_USER_AGENT = "DeLonghiComfort/3 CFNetwork/1568.300.101 Darwin/24.2.0"
 
 
 class Client:
@@ -49,27 +43,27 @@ class Client:
         return cls(token_path)
 
     def __init__(self, token_path: str):
-        # Ensure the token_path points to a JSON file.
-        if not token_path.endswith(".json"):
-            raise ValueError("token_path must point to a .json file")
-
-        # Load API configuration from resources.
-        self.api_conf = load_api_config()
-        self.gigya_api = self.api_conf.get("GIGYA")
-        self.ayla_api = self.api_conf.get("AYLA")
-
         self.token_path = token_path
-        # Retrieve or refresh the access token upon initialization.
-        self.access_token = self.__get_access_token()
+        self.ayla_session = AylaSession(token_path)
         # Fetch the list of devices associated with the account.
-        self.devices = requests.get(
-            url=f"{self.ayla_api.get('API_URL')}/devices.json",
-            headers={
-                "User-Agent": API_USER_AGENT,
-                "Authorization": f"auth_token {self.access_token}",
-                "Accept": "application/json",
-            },
-        ).json()
+        self.devices = self.ayla_session.request("GET", "/devices.json").json()
+
+    @property
+    def access_token(self) -> str:
+        """Return the current Ayla access token."""
+        return self._get_ayla_session().access_token
+
+    def _get_ayla_session(self) -> AylaSession:
+        """Lazily create the shared Ayla session.
+
+        Some tests instantiate ``Client`` with ``__new__`` to exercise token-file
+        helpers without running the full networked initializer.
+        """
+        session = getattr(self, "ayla_session", None)
+        if session is None:
+            session = AylaSession(self.token_path)
+            self.ayla_session = session
+        return session
 
     def get_devices(self):
         """
@@ -83,50 +77,33 @@ class Client:
             devices.append(device["device"]["dsn"])
         return devices
 
-    def get_device(self, dsn: str, device_map_path: dict | None = None):
+    def get_device(self, dsn: str, device_map_path: str | None = None):
         """
         Retrieves a specific cloud device by its DSN.
 
         Args:
             dsn (str): The Device Serial Number of the desired device.
-            device_map_path (dict | None): Optional mapping for device properties.
+            device_map_path (str | None): Optional path to a device map file.
 
         Returns:
             CloudDevice | None: An instance of CloudDevice if found, otherwise None.
         """
+        from cremalink.domain import create_cloud_device
+
         for device_dsn in self.get_devices():
             if device_dsn == dsn:
-                return create_cloud_device(device_dsn, self.access_token, device_map_path)
+                return create_cloud_device(
+                    device_dsn,
+                    device_map_path=device_map_path,
+                    ayla_session=self._get_ayla_session(),
+                )
         return None
 
     def __get_access_token(self):
         """
         Retrieves a valid access token, refreshing it if necessary using the refresh token.
         """
-        refresh_token = self.__get_refresh_token()
-        # If no refresh token is found, prompt the user to provide one.
-        if not refresh_token or refresh_token == "":
-            self.__set_refresh_token("")
-            raise ValueError(f"No refresh token found. Open {self.token_path} and add a valid refresh token.")
-        response = requests.post(
-            url=f"{self.ayla_api.get('OAUTH_URL')}/users/refresh_token.json",
-            headers={
-                "User-Agent": TOKEN_USER_AGENT,
-                "Content-Type": "application/json",
-            },
-            json={"user": {"refresh_token": refresh_token}},
-        )
-        if response.status_code == 200:
-            # If successful, extract new access and refresh tokens.
-            data = response.json()
-            new_access_token = data["access_token"]
-            new_refresh_token = data["refresh_token"]
-            # Update the stored refresh token.
-            self.__set_refresh_token(new_refresh_token)
-            return new_access_token
-        else:
-            # Raise an error if access token retrieval fails.
-            raise ValueError(f"Failed to get access token: {response.status_code} {response.text}")
+        return self._get_ayla_session().refresh_access_token()
 
     def __get_refresh_token(self):
         """
@@ -135,14 +112,7 @@ class Client:
         Returns:
             str | None: The refresh token if found, otherwise None.
         """
-        if os.path.exists(self.token_path):
-            with open(self.token_path, "r") as f:
-                data = f.read()
-                f.close()
-                if data:
-                    token_data = json.loads(data)
-                    return token_data.get("refresh_token", None)
-        return None
+        return self._get_ayla_session().get_refresh_token()
 
     def __set_refresh_token(self, refresh_token: str):
         """
@@ -151,10 +121,4 @@ class Client:
         Args:
             refresh_token (str): The new refresh token to store.
         """
-        with open(self.token_path, "w+") as f:
-            # Read existing data to preserve other potential keys.
-            data = f.read()
-            token_data = json.loads(data) if data else {}
-            token_data["refresh_token"] = refresh_token
-            f.write(json.dumps(token_data, indent=2))
-            f.close()
+        self._get_ayla_session().set_refresh_token(refresh_token)

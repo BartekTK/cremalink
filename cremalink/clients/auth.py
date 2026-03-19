@@ -43,6 +43,7 @@ _ACCOUNTS_BASE = "https://accounts.eu1.gigya.com"
 _CONSENT_BASE = "https://aylaopenid.delonghigroup.com"
 _REDIRECT_URI = "https://google.it"
 _SCOPE = "openid email profile UID comfort en alexa"
+AUTH_REQUEST_TIMEOUT = 10
 
 
 def _get_query_param(url: str, param: str) -> str | None:
@@ -97,6 +98,7 @@ def authenticate_gigya(email: str, password: str) -> AuthTokens:
                 "nonce": str(int(datetime.now().timestamp())),
             },
             allow_redirects=False,
+            timeout=AUTH_REQUEST_TIMEOUT,
         )
         location = r.headers.get("Location", "")
         context = _get_query_param(location, "context")
@@ -120,6 +122,7 @@ def authenticate_gigya(email: str, password: str) -> AuthTokens:
                 "sdkBuild": sdk_build,
                 "format": "json",
             },
+            timeout=AUTH_REQUEST_TIMEOUT,
         ).json()
         ucid = r["ucid"]
         gmid = r["gmid"]
@@ -152,6 +155,7 @@ def authenticate_gigya(email: str, password: str) -> AuthTokens:
                 "sdkBuild": sdk_build,
                 "format": "json",
             },
+            timeout=AUTH_REQUEST_TIMEOUT,
         ).json()
         if r.get("errorCode", 0) != 0:
             raise GigyaAuthError(f"Login failed: {r.get('errorMessage', 'Unknown error')}")
@@ -180,6 +184,7 @@ def authenticate_gigya(email: str, password: str) -> AuthTokens:
                 "sdkBuild": sdk_build,
                 "format": "json",
             },
+            timeout=AUTH_REQUEST_TIMEOUT,
         ).json()
         uid = r["UID"]
         uid_sig = r["UIDSignature"]
@@ -202,6 +207,7 @@ def authenticate_gigya(email: str, password: str) -> AuthTokens:
                 "UIDSignature": uid_sig,
                 "signatureTimestamp": sig_ts,
             },
+            timeout=AUTH_REQUEST_TIMEOUT,
         ).text
         signature = r.split("const consentObj2Sig = '")[1].split("';")[0]
     except (IndexError, ValueError) as e:
@@ -231,6 +237,7 @@ def authenticate_gigya(email: str, password: str) -> AuthTokens:
                 "gmidTicket": gmid_ticket,
             },
             allow_redirects=False,
+            timeout=AUTH_REQUEST_TIMEOUT,
         )
         location = r.headers.get("Location", "")
         code = _get_query_param(location, "code")
@@ -260,6 +267,7 @@ def authenticate_gigya(email: str, password: str) -> AuthTokens:
                 "grant_type": "authorization_code",
                 "redirect_uri": _REDIRECT_URI,
             },
+            timeout=AUTH_REQUEST_TIMEOUT,
         ).json()
         idp_token = r["access_token"]
     except KeyError as e:
@@ -277,6 +285,7 @@ def authenticate_gigya(email: str, password: str) -> AuthTokens:
                 "app_secret": app_secret,
                 "token": idp_token,
             },
+            timeout=AUTH_REQUEST_TIMEOUT,
         ).json()
         return AuthTokens(
             access_token=r["access_token"],

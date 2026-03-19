@@ -27,6 +27,7 @@ class DummyLocalTransport(LocalTransport):
         super().__init__(*args, **kwargs, auto_configure=False)
         self.calls = []
         self.configure_payloads = []
+        self.command_payloads = []
 
     def _post_server(self, path: str, body: dict, timeout: int = 10):
         self.calls.append(("POST", path))
@@ -34,6 +35,7 @@ class DummyLocalTransport(LocalTransport):
             self.configure_payloads.append(body)
             return DummyResponse(200, {"status": "configured"})
         if path == "/command":
+            self.command_payloads.append(body)
             return DummyResponse(200, {"status": "queued"})
         return DummyResponse(200, {})
 
@@ -79,3 +81,18 @@ def test_local_transport_flow():
 
     health = transport.health()
     assert health == "ok"
+
+
+def test_local_transport_forwards_alternative_property():
+    transport = DummyLocalTransport(
+        dsn="dsn1",
+        lan_key="lan",
+        device_ip="1.2.3.4",
+        server_host="localhost",
+        server_port=1234,
+        device_scheme="http",
+    )
+
+    transport.send_command("brew", alternative_property="app_device_connected")
+
+    assert transport.command_payloads[-1]["property_name"] == "app_device_connected"

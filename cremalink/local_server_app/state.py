@@ -243,10 +243,11 @@ class LocalServerState:
         return bool(self.app_crypto_key and self.app_iv_seed and self.app_sign_key)
 
     # --- command queue ---
-    async def queue_command(self, command: str) -> None:
+    async def queue_command(self, command: str, property_name: Optional[str] = None) -> None:
         """Adds a high-level device command to the outgoing queue."""
         if not self.is_configured():
             raise ValueError("Server not configured")
+        target_property = property_name or self.data_request_property_name
         payload = {
             "seq_no": protocol.pad_seq(self.seq),
             "data": {
@@ -255,7 +256,7 @@ class LocalServerState:
                         "property": {
                             "base_type": "string",
                             "dsn": self.dsn,
-                            "name": self.data_request_property_name,
+                            "name": target_property,
                             "value": f"{command}\n",
                         }
                     }

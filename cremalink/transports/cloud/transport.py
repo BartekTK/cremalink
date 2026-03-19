@@ -6,17 +6,18 @@ from __future__ import annotations
 
 import time
 from datetime import datetime
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 import requests
 
+from cremalink.clients.ayla import API_USER_AGENT, DEFAULT_REQUEST_TIMEOUT
 from cremalink.parsing.monitor.decode import build_monitor_snapshot
 from cremalink.parsing.properties import PropertiesSnapshot
 from cremalink.transports.base import DeviceTransport
 from cremalink.resources import load_api_config
 
-API_USER_AGENT = "datatransport/3.1.2 android/"
-TOKEN_USER_AGENT = "DeLonghiComfort/3 CFNetwork/1568.300.101 Darwin/24.2.0"
+if TYPE_CHECKING:
+    from cremalink.clients.ayla import AylaSession
 
 
 class CloudTransport(DeviceTransport):
@@ -28,7 +29,13 @@ class CloudTransport(DeviceTransport):
     it fetches key device metadata from the cloud and stores it.
     """
 
-    def __init__(self, dsn: str, access_token: str, device_map_path: Optional[str] = None) -> None:
+    def __init__(
+        self,
+        dsn: str,
+        access_token: Optional[str] = None,
+        device_map_path: Optional[str] = None,
+        ayla_session: Optional["AylaSession"] = None,
+    ) -> None:
         """
         Initializes the CloudTransport.
 
@@ -36,13 +43,18 @@ class CloudTransport(DeviceTransport):
             dsn: The Device Serial Number.
             access_token: A valid OAuth access token for the cloud API.
             device_map_path: Optional path to a device-specific command map file.
+            ayla_session: Shared Ayla session capable of refreshing expired tokens.
         """
         self.api_conf = load_api_config()
         self.gigya_api = self.api_conf.get("GIGYA")
         self.ayla_api = self.api_conf.get("AYLA")
 
+        if ayla_session is None and not access_token:
+            raise ValueError("Either access_token or ayla_session must be provided")
+
         self.dsn = dsn
         self.access_token = access_token
+        self.ayla_session = ayla_session
         self.device_map_path = device_map_path
         self.command_map: dict[str, Any] = {}
         self.property_map: dict[str, Any] = {}
@@ -68,45 +80,56 @@ class CloudTransport(DeviceTransport):
         return None
 
     # ---- helpers ----
-    def _get(self, path: str) -> dict:
-        """Helper for making authenticated GET requests using the device DSN."""
-        response = requests.get(
-            url=f"{self.ayla_api.get('API_URL')}/dsns/{self.dsn}{path}",
-            headers={
-                "User-Agent": API_USER_AGENT,
-                "Authorization": f"auth_token {self.access_token}",
-                "Accept": "application/json",
-            },
-        )
-        response.raise_for_status()
-        return response.json()
+    def _request(
+        self,
+        method: str,
+        path: str,
+        *,
+        params: dict[str, Any] | None = None,
+        json_body: dict[str, Any] | None = None,
+    ) -> requests.Response:
+        """Make an authenticated Ayla request.
 
-    def _get_by_id(self, path: str) -> dict:
-        """Helper for making authenticated GET requests using the internal device ID."""
-        response = requests.get(
-            url=f"{self.ayla_api.get('API_URL')}/devices/{self.id}{path}",
-            headers={
-                "User-Agent": API_USER_AGENT,
-                "Authorization": f"auth_token {self.access_token}",
-                "Accept": "application/json",
-            },
-        )
-        response.raise_for_status()
-        return response.json()
+        When a shared session is available, it will transparently refresh an
+        expired access token and retry once.
+        """
+        if self.ayla_session is not None:
+            return self.ayla_session.request(
+                method,
+                path,
+                params=params,
+                json_body=json_body,
+            )
 
-    def _post(self, path: str, data: dict) -> dict:
-        """Helper for making authenticated POST requests."""
-        response = requests.post(
-            url=f"{self.ayla_api.get('API_URL')}/dsns/{self.dsn}{path}",
+        response = requests.request(
+            method=method,
+            url=f"{self.ayla_api.get('API_URL')}{path}",
             headers={
                 "User-Agent": API_USER_AGENT,
                 "Authorization": f"auth_token {self.access_token}",
                 "Accept": "application/json",
                 "Content-Type": "application/json",
             },
-            json=data,
+            params=params,
+            json=json_body,
+            timeout=DEFAULT_REQUEST_TIMEOUT,
         )
         response.raise_for_status()
+        return response
+
+    def _get(self, path: str) -> dict:
+        """Helper for making authenticated GET requests using the device DSN."""
+        response = self._request("GET", f"/dsns/{self.dsn}{path}")
+        return response.json()
+
+    def _get_by_id(self, path: str) -> dict:
+        """Helper for making authenticated GET requests using the internal device ID."""
+        response = self._request("GET", f"/devices/{self.id}{path}")
+        return response.json()
+
+    def _post(self, path: str, data: dict) -> dict:
+        """Helper for making authenticated POST requests."""
+        response = self._request("POST", f"/dsns/{self.dsn}{path}", json_body=data)
         return response.json()
 
     # ---- DeviceTransport Implementation ----
@@ -139,7 +162,11 @@ class CloudTransport(DeviceTransport):
 
     def get_property(self, name: str) -> Any:
         """Fetches a single, specific property by name."""
-        props = self._get(f"/properties.json?names[]={name}")
+        props = self._request(
+            "GET",
+            f"/dsns/{self.dsn}/properties.json",
+            params={"names[]": name},
+        ).json()
         # The API returns a list, even for a single property.
         if props and isinstance(props, list):
             return props[0].get("property")

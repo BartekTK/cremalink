@@ -1,5 +1,6 @@
 import asyncio
 import base64
+from typing import Optional
 
 from cremalink import device_map
 from cremalink.core.binary import crc16_ccitt
@@ -44,9 +45,10 @@ def build_monitor_b64(
 
 
 class StubTransport:
-    def __init__(self, snapshot):
+    def __init__(self, snapshot, model: Optional[str] = None):
         self.snapshot = snapshot
         self.mappings: dict | None = None
+        self.model = model
 
     def set_mappings(self, command_map, property_map):
         self.mappings = {"command_map": command_map, "property_map": property_map}
@@ -140,3 +142,15 @@ def test_monitor_profile_predicates_and_enums():
     assert view.is_idle is False
     assert "is_busy" in view.available_fields
     assert "is_watertank_empty" in view.available_fields
+
+
+def test_from_map_uses_runtime_model_for_device_map_lookup():
+    monitor_b64 = build_monitor_b64()
+    snapshot = build_monitor_snapshot({"monitor_b64": monitor_b64, "received_at": 1.0}, source="local", device_id="dsn1")
+    transport = StubTransport(snapshot, model="ECAM612")
+
+    device = Device.from_map(transport=transport, dsn="dsn1", model="ECAM612")
+
+    assert device.resolve_property("monitor") == "d302_monitor"
+    assert transport.mappings is not None
+    assert transport.mappings["property_map"]["monitor"] == "d302_monitor"

@@ -27,6 +27,7 @@ class ConfigureRequest(BaseModel):
 class CommandRequest(BaseModel):
     """Model for the `/command` endpoint request body."""
     command: str
+    property_name: str | None = None
 
 
 class KeyExchange(BaseModel):

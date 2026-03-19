@@ -91,6 +91,8 @@ class Device:
     property_map: Dict[str, Any] = field(default_factory=dict)
     monitor_profile: MonitorProfile = field(default_factory=MonitorProfile)
     extra: dict[str, Any] = field(default_factory=dict)
+    _app_connection_active: bool = field(default=False, init=False, repr=False)
+    _last_app_connection_refresh: float = field(default=0.0, init=False, repr=False)
 
     @classmethod
     def from_map(
@@ -114,7 +116,8 @@ class Device:
             A configured Device instance.
         """
         if not device_map_path:
-            device_map_path = device_map(cls.model) if cls.model else None
+            model_id = kwargs.get("model") or getattr(transport, "model", None) or cls.model
+            device_map_path = device_map(model_id) if model_id else None
         
         map_data = _load_device_map(device_map_path)
 
@@ -298,6 +301,23 @@ class Device:
         command = _encode_command(hex_command, APP_ID_HEX)
         return self.transport.send_command(command)
 
+    def refresh_app_connection(self) -> bool:
+        """Refresh the existing live monitor session if this device owns it."""
+        our_app_id = hex_to_signed_decimal(APP_ID_HEX)
+        prop = self.get_property(
+            self.property_map.get("app_id", "app_id")
+        ) or {}
+        current = prop.get("value", "0")
+
+        if current != our_app_id:
+            self._app_connection_active = False
+            return False
+
+        self._refresh_app_id()
+        self._app_connection_active = True
+        self._last_app_connection_refresh = time.monotonic()
+        return True
+
     def activate_app_connection(self) -> bool:
         """
         Register or refresh the app connection so the machine pushes live
@@ -318,14 +338,41 @@ class Device:
 
         if current == our_app_id:
             self._refresh_app_id()
-            return True
+            active = True
         else:
             self._register_app_id(APP_ID_HEX)
             time.sleep(7)
             prop = self.get_property(
                 self.property_map.get("app_id", "app_id")
             ) or {}
-            return prop.get("value", "0") == our_app_id
+            active = prop.get("value", "0") == our_app_id
+
+        self._app_connection_active = active
+        if active:
+            self._last_app_connection_refresh = time.monotonic()
+        return active
+
+    def ensure_app_connection(self, refresh_interval: float = 60.0) -> bool:
+        """Ensure the cloud app connection exists and stays refreshed.
+
+        This public API encapsulates the app-id registration/refresh lifecycle
+        needed for live monitor data. Callers can invoke it regularly without
+        needing to know whether they should activate or refresh.
+        """
+        if not self.property_map.get("app_id"):
+            return True
+
+        now = time.monotonic()
+        if (
+            self._app_connection_active
+            and now - self._last_app_connection_refresh < refresh_interval
+        ):
+            return True
+
+        if self._app_connection_active and self.refresh_app_connection():
+            return True
+
+        return self.activate_app_connection()
 
     def brew_custom(
         self,
